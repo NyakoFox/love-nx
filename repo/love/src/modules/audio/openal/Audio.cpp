@@ -110,7 +110,7 @@ Audio::Audio()
 	}
 
 	{
-#if defined(LOVE_LINUX)
+#if defined(LOVE_LINUX) and !defined(LOVE_NX)
 		// Temporarly block signals, as the thread inherits this mask
 		love::thread::ScopedDisableSignals disableSignals;
 #endif

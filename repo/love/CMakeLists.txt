@@ -1325,7 +1325,13 @@ set(LOVE_SRC_3P_ENET
 
 add_library(love_3p_enet ${LOVE_SRC_3P_ENET})
 target_link_libraries(love_3p_enet ${LOVE_LUA_LIBRARY})
-target_include_directories(love_3p_enet PUBLIC src/libraries/enet/libenet/include)
+
+if(NINTENDO_SWITCH)
+	target_include_directories(love_3p_enet BEFORE PUBLIC src/libraries/enet/libenet/include)
+else()
+	target_include_directories(love_3p_enet PUBLIC src/libraries/enet/libenet/include)
+endif()
+
 if(MINGW)
 	target_link_libraries(love_3p_enet winmm.a)
 endif()
