@@ -1,5 +1,5 @@
 /**
- * Copyright (c) 2006-2022 LOVE Development Team
+ * Copyright (c) 2006-2024 LOVE Development Team
  *
  * This software is provided 'as-is', without any express or implied
  * warranty.  In no event will the authors be held liable for any damages
@@ -104,6 +104,8 @@ public:
 	int getPixelWidth() const override;
 	int getPixelHeight() const override;
 
+	void clampPositionInWindow(double *wx, double *wy) const override;
+
 	void windowToPixelCoords(double *x, double *y) const override;
 	void pixelToWindowCoords(double *x, double *y) const override;
 
@@ -158,6 +160,10 @@ private:
 	int pixelHeight  = 600;
 	WindowSettings settings;
 	StrongRef<love::image::ImageData> icon;
+
+#ifdef LOVE_WINDOWS
+	bool canUseDwmFlush = false;
+#endif
 
 	bool open;
 
