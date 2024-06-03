@@ -1,6 +1,6 @@
 /*
 ** C declaration parser.
-** Copyright (C) 2005-2021 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2005-2017 Mike Pall. See Copyright Notice in luajit.h
 */
 
 #include "lj_obj.h"
@@ -27,12 +27,6 @@
 ** Also, it shows rather generic error messages to avoid unnecessary bloat.
 ** If in doubt, please check the input against your favorite C compiler.
 */
-
-#ifdef LUA_USE_ASSERT
-#define lj_assertCP(c, ...)	(lj_assertG_(G(cp->L), (c), __VA_ARGS__))
-#else
-#define lj_assertCP(c, ...)	((void)cp)
-#endif
 
 /* -- Miscellaneous ------------------------------------------------------- */
 
@@ -67,7 +61,7 @@ LJ_NORET static void cp_err(CPState *cp, ErrMsg em);
 
 static const char *cp_tok2str(CPState *cp, CPToken tok)
 {
-  lj_assertCP(tok < CTOK_FIRSTDECL, "bad CPToken %d", tok);
+  lua_assert(tok < CTOK_FIRSTDECL);
   if (tok > CTOK_OFS)
     return ctoknames[tok-CTOK_OFS-1];
   else if (!lj_char_iscntrl(tok))
@@ -133,9 +127,9 @@ LJ_NORET static void cp_errmsg(CPState *cp, CPToken tok, ErrMsg em, ...)
     tokstr = NULL;
   } else if (tok == CTOK_IDENT || tok == CTOK_INTEGER || tok == CTOK_STRING ||
 	     tok >= CTOK_FIRSTDECL) {
-    if (cp->sb.w == cp->sb.b) cp_save(cp, '$');
+    if (sbufP(&cp->sb) == sbufB(&cp->sb)) cp_save(cp, '$');
     cp_save(cp, '\0');
-    tokstr = cp->sb.b;
+    tokstr = sbufB(&cp->sb);
   } else {
     tokstr = cp_tok2str(cp, tok);
   }
@@ -175,7 +169,7 @@ static CPToken cp_number(CPState *cp)
   TValue o;
   do { cp_save(cp, cp->c); } while (lj_char_isident(cp_get(cp)));
   cp_save(cp, '\0');
-  fmt = lj_strscan_scan((const uint8_t *)(cp->sb.b), sbuflen(&cp->sb)-1,
+  fmt = lj_strscan_scan((const uint8_t *)sbufB(&cp->sb), sbuflen(&cp->sb)-1,
 			&o, STRSCAN_OPT_C);
   if (fmt == STRSCAN_INT) cp->val.id = CTID_INT32;
   else if (fmt == STRSCAN_U32) cp->val.id = CTID_UINT32;
@@ -279,7 +273,7 @@ static CPToken cp_string(CPState *cp)
     return CTOK_STRING;
   } else {
     if (sbuflen(&cp->sb) != 1) cp_err_token(cp, '\'');
-    cp->val.i32 = (int32_t)(char)*cp->sb.b;
+    cp->val.i32 = (int32_t)(char)*sbufB(&cp->sb);
     cp->val.id = CTID_INT32;
     return CTOK_INTEGER;
   }
@@ -398,7 +392,7 @@ static void cp_init(CPState *cp)
   cp->curpack = 0;
   cp->packstack[0] = 255;
   lj_buf_init(cp->L, &cp->sb);
-  lj_assertCP(cp->p != NULL, "uninitialized cp->p");
+  lua_assert(cp->p != NULL);
   cp_get(cp);  /* Read-ahead first char. */
   cp->tok = 0;
   cp->tmask = CPNS_DEFAULT;
@@ -859,13 +853,12 @@ static CTypeID cp_decl_intern(CPState *cp, CPDecl *decl)
     /* The cid is already part of info for copies of pointers/functions. */
     idx = ct->next;
     if (ctype_istypedef(info)) {
-      lj_assertCP(id == 0, "typedef not at toplevel");
+      lua_assert(id == 0);
       id = ctype_cid(info);
       /* Always refetch info/size, since struct/enum may have been completed. */
       cinfo = ctype_get(cp->cts, id)->info;
       csize = ctype_get(cp->cts, id)->size;
-      lj_assertCP(ctype_isstruct(cinfo) || ctype_isenum(cinfo),
-		  "typedef of bad type");
+      lua_assert(ctype_isstruct(cinfo) || ctype_isenum(cinfo));
     } else if (ctype_isfunc(info)) {  /* Intern function. */
       CType *fct;
       CTypeID fid;
@@ -898,7 +891,7 @@ static CTypeID cp_decl_intern(CPState *cp, CPDecl *decl)
       /* Inherit csize/cinfo from original type. */
     } else {
       if (ctype_isnum(info)) {  /* Handle mode/vector-size attributes. */
-	lj_assertCP(id == 0, "number not at toplevel");
+	lua_assert(id == 0);
 	if (!(info & CTF_BOOL)) {
 	  CTSize msize = ctype_msizeP(decl->attr);
 	  CTSize vsize = ctype_vsizeP(decl->attr);
@@ -953,7 +946,7 @@ static CTypeID cp_decl_intern(CPState *cp, CPDecl *decl)
 	  info = (info & ~CTF_ALIGN) | (cinfo & CTF_ALIGN);
 	info |= (cinfo & CTF_QUAL);  /* Inherit qual. */
       } else {
-	lj_assertCP(ctype_isvoid(info), "bad ctype %08x", info);
+	lua_assert(ctype_isvoid(info));
       }
       csize = size;
       cinfo = info+id;
@@ -1592,7 +1585,7 @@ end_decl:
 	cp_errmsg(cp, cp->tok, LJ_ERR_FFI_DECLSPEC);
       sz = sizeof(int);
     }
-    lj_assertCP(sz != 0, "basic ctype with zero size");
+    lua_assert(sz != 0);
     info += CTALIGN(lj_fls(sz));  /* Use natural alignment. */
     info += (decl->attr & CTF_QUAL);  /* Merge qualifiers. */
     cp_push(decl, info, sz);
@@ -1852,7 +1845,7 @@ static void cp_decl_multi(CPState *cp)
 	  /* Treat both static and extern function declarations as extern. */
 	  ct = ctype_get(cp->cts, ctypeid);
 	  /* We always get new anonymous functions (typedefs are copied). */
-	  lj_assertCP(gcref(ct->name) == NULL, "unexpected named function");
+	  lua_assert(gcref(ct->name) == NULL);
 	  id = ctypeid;  /* Just name it. */
 	} else if ((scl & CDF_STATIC)) {  /* Accept static constants. */
 	  id = cp_decl_constinit(cp, &ct, ctypeid);
@@ -1909,7 +1902,7 @@ static TValue *cpcparser(lua_State *L, lua_CFunction dummy, void *ud)
     cp_decl_single(cp);
   if (cp->param && cp->param != cp->L->top)
     cp_err(cp, LJ_ERR_FFI_NUMPARAM);
-  lj_assertCP(cp->depth == 0, "unbalanced cparser declaration depth");
+  lua_assert(cp->depth == 0);
   return NULL;
 }
 

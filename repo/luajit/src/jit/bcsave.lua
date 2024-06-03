@@ -1,7 +1,7 @@
 ----------------------------------------------------------------------------
 -- LuaJIT module to save/list bytecode.
 --
--- Copyright (C) 2005-2021 Mike Pall. All rights reserved.
+-- Copyright (C) 2005-2017 Mike Pall. All rights reserved.
 -- Released under the MIT license. See Copyright Notice in luajit.h
 ----------------------------------------------------------------------------
 --
@@ -11,7 +11,7 @@
 ------------------------------------------------------------------------------
 
 local jit = require("jit")
-assert(jit.version_num == 20100, "LuaJIT core/library version mismatch")
+assert(jit.version_num == 20102, "LuaJIT core/library version mismatch")
 local bit = require("bit")
 
 -- Symbol name prefix for LuaJIT bytecode.
@@ -72,13 +72,14 @@ local map_arch = {
   arm =		{ e = "le", b = 32, m = 40, p = 0x1c0, },
   arm64 =	{ e = "le", b = 64, m = 183, p = 0xaa64, },
   arm64be =	{ e = "be", b = 64, m = 183, },
-  ppc =		{ e = "be", b = 32, m = 20, },
+  ppc =		{ e = "be", b = 32, m = 20, p = 0x1f2, },
   mips =	{ e = "be", b = 32, m = 8, f = 0x50001006, },
   mipsel =	{ e = "le", b = 32, m = 8, f = 0x50001006, },
   mips64 =	{ e = "be", b = 64, m = 8, f = 0x80000007, },
   mips64el =	{ e = "le", b = 64, m = 8, f = 0x80000007, },
   mips64r6 =	{ e = "be", b = 64, m = 8, f = 0xa0000407, },
   mips64r6el =	{ e = "le", b = 64, m = 8, f = 0xa0000407, },
+  ppc64le =	{ e = "le", b = 64, m = 21, p = 0x1f2, },
 }
 
 local map_os = {

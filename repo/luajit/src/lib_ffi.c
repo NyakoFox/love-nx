@@ -1,6 +1,6 @@
 /*
 ** FFI library.
-** Copyright (C) 2005-2021 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2005-2017 Mike Pall. See Copyright Notice in luajit.h
 */
 
 #define lib_ffi_c
@@ -194,7 +194,7 @@ LJLIB_CF(ffi_meta___eq)		LJLIB_REC(cdata_arith MM_eq)
 
 LJLIB_CF(ffi_meta___len)	LJLIB_REC(cdata_arith MM_len)
 {
-  return ffi_arith(L);
+  return lj_carith_len(L);
 }
 
 LJLIB_CF(ffi_meta___lt)		LJLIB_REC(cdata_arith MM_lt)
@@ -573,7 +573,6 @@ LJLIB_CF(ffi_typeinfo)
       setintV(lj_tab_setstr(L, t, lj_str_newlit(L, "sib")), (int32_t)ct->sib);
     if (gcref(ct->name)) {
       GCstr *s = gco2str(gcref(ct->name));
-      if (isdead(G(L), obj2gco(s))) flipwhite(obj2gco(s));
       setstrV(L, lj_tab_setstr(L, t, lj_str_newlit(L, "name")), s);
     }
     lj_gc_check(L);

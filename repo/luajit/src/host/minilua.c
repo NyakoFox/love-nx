@@ -1134,7 +1134,7 @@ if(!cl->isC){
 CallInfo*ci;
 StkId st,base;
 Proto*p=cl->p;
-luaD_checkstack(L,p->maxstacksize+p->numparams);
+luaD_checkstack(L,p->maxstacksize);
 func=restorestack(L,funcr);
 if(!p->is_vararg){
 base=func+1;

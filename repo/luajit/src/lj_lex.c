@@ -1,6 +1,6 @@
 /*
 ** Lexical analyzer.
-** Copyright (C) 2005-2021 Mike Pall. See Copyright Notice in luajit.h
+** Copyright (C) 2005-2017 Mike Pall. See Copyright Notice in luajit.h
 **
 ** Major portions taken verbatim or adapted from the Lua interpreter.
 ** Copyright (C) 1994-2008 Lua.org, PUC-Rio. See Copyright Notice in lua.h
@@ -82,7 +82,7 @@ static LJ_AINLINE LexChar lex_savenext(LexState *ls)
 static void lex_newline(LexState *ls)
 {
   LexChar old = ls->c;
-  lj_assertLS(lex_iseol(ls), "bad usage");
+  lua_assert(lex_iseol(ls));
   lex_next(ls);  /* Skip "\n" or "\r". */
   if (lex_iseol(ls) && ls->c != old) lex_next(ls);  /* Skip "\n\r" or "\r\n". */
   if (++ls->linenumber >= LJ_MAX_LINE)
@@ -96,7 +96,7 @@ static void lex_number(LexState *ls, TValue *tv)
 {
   StrScanFmt fmt;
   LexChar c, xp = 'e';
-  lj_assertLS(lj_char_isdigit(ls->c), "bad usage");
+  lua_assert(lj_char_isdigit(ls->c));
   if ((c = ls->c) == '0' && (lex_savenext(ls) | 0x20) == 'x')
     xp = 'p';
   while (lj_char_isident(ls->c) || ls->c == '.' ||
@@ -105,7 +105,7 @@ static void lex_number(LexState *ls, TValue *tv)
     lex_savenext(ls);
   }
   lex_save(ls, '\0');
-  fmt = lj_strscan_scan((const uint8_t *)ls->sb.b, sbuflen(&ls->sb)-1, tv,
+  fmt = lj_strscan_scan((const uint8_t *)sbufB(&ls->sb), sbuflen(&ls->sb)-1, tv,
 	  (LJ_DUALNUM ? STRSCAN_OPT_TOINT : STRSCAN_OPT_TONUM) |
 	  (LJ_HASFFI ? (STRSCAN_OPT_LL|STRSCAN_OPT_IMAG) : 0));
   if (LJ_DUALNUM && fmt == STRSCAN_INT) {
@@ -116,9 +116,12 @@ static void lex_number(LexState *ls, TValue *tv)
   } else if (fmt != STRSCAN_ERROR) {
     lua_State *L = ls->L;
     GCcdata *cd;
-    lj_assertLS(fmt == STRSCAN_I64 || fmt == STRSCAN_U64 || fmt == STRSCAN_IMAG,
-		"unexpected number format %d", fmt);
-    ctype_loadffi(L);
+    lua_assert(fmt == STRSCAN_I64 || fmt == STRSCAN_U64 || fmt == STRSCAN_IMAG);
+    if (!ctype_ctsG(G(L))) {
+      ptrdiff_t oldtop = savestack(L, L->top);
+      luaopen_ffi(L);  /* Load FFI library on-demand. */
+      L->top = restorestack(L, oldtop);
+    }
     if (fmt == STRSCAN_IMAG) {
       cd = lj_cdata_new_(L, CTID_COMPLEX_DOUBLE, 2*sizeof(double));
       ((double *)cdataptr(cd))[0] = 0;
@@ -130,8 +133,7 @@ static void lex_number(LexState *ls, TValue *tv)
     lj_parse_keepcdata(ls, tv, cd);
 #endif
   } else {
-    lj_assertLS(fmt == STRSCAN_ERROR,
-		"unexpected number format %d", fmt);
+    lua_assert(fmt == STRSCAN_ERROR);
     lj_lex_error(ls, TK_number, LJ_ERR_XNUMBER);
   }
 }
@@ -141,7 +143,7 @@ static int lex_skipeq(LexState *ls)
 {
   int count = 0;
   LexChar s = ls->c;
-  lj_assertLS(s == '[' || s == ']', "bad usage");
+  lua_assert(s == '[' || s == ']');
   while (lex_savenext(ls) == '=' && count < 0x20000000)
     count++;
   return (ls->c == s) ? count : (-count) - 1;
@@ -176,7 +178,7 @@ static void lex_longstring(LexState *ls, TValue *tv, int sep)
     }
   } endloop:
   if (tv) {
-    GCstr *str = lj_parse_keepstr(ls, ls->sb.b + (2 + (MSize)sep),
+    GCstr *str = lj_parse_keepstr(ls, sbufB(&ls->sb) + (2 + (MSize)sep),
 				      sbuflen(&ls->sb) - 2*(2 + (MSize)sep));
     setstrV(ls->L, tv, str);
   }
@@ -282,7 +284,7 @@ static void lex_string(LexState *ls, TValue *tv)
   }
   lex_savenext(ls);  /* Skip trailing delimiter. */
   setstrV(ls->L, tv,
-	  lj_parse_keepstr(ls, ls->sb.b+1, sbuflen(&ls->sb)-2));
+	  lj_parse_keepstr(ls, sbufB(&ls->sb)+1, sbuflen(&ls->sb)-2));
 }
 
 /* -- Main lexical scanner ------------------------------------------------ */
@@ -302,7 +304,7 @@ static LexToken lex_scan(LexState *ls, TValue *tv)
       do {
 	lex_savenext(ls);
       } while (lj_char_isident(ls->c));
-      s = lj_parse_keepstr(ls, ls->sb.b, sbuflen(&ls->sb));
+      s = lj_parse_keepstr(ls, sbufB(&ls->sb), sbuflen(&ls->sb));
       setstrV(ls->L, tv, s);
       if (s->reserved > 0)  /* Reserved word? */
 	return TK_OFS + s->reserved;
@@ -467,7 +469,7 @@ void lj_lex_next(LexState *ls)
 /* Look ahead for the next token. */
 LexToken lj_lex_lookahead(LexState *ls)
 {
-  lj_assertLS(ls->lookahead == TK_eof, "double lookahead");
+  lua_assert(ls->lookahead == TK_eof);
   ls->lookahead = lex_scan(ls, &ls->lookaheadval);
   return ls->lookahead;
 }
@@ -492,7 +494,7 @@ void lj_lex_error(LexState *ls, LexToken tok, ErrMsg em, ...)
     tokstr = NULL;
   } else if (tok == TK_name || tok == TK_string || tok == TK_number) {
     lex_save(ls, '\0');
-    tokstr = ls->sb.b;
+    tokstr = sbufB(&ls->sb);
   } else {
     tokstr = lj_lex_token2str(ls, tok);
   }
